@@ -8,7 +8,7 @@ namespace BenAndPrinceton {
 
 enum BoardItem {
     EMPTY,
-    US, // me
+    US,
     THEM
 };
 
