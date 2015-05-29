@@ -1,3 +1,4 @@
+#pragma once
 #include <chrono>
 
 /*
@@ -32,7 +33,7 @@ public:
             return to_seconds(tt + (Clock::now() - t));
     }
  
-    void sqzzl(int mv[]) {
+    void sqzzl(int mv[3]) {
         doing_move = true;
         
         t = Clock::now();
