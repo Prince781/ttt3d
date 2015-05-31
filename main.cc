@@ -1,7 +1,9 @@
 #include "ttt3d.h"
 
 #include <cstdio>
+#include <cassert>
 #include <cinttypes>
+
 #include <vector>
 #include <algorithm>
 #include <thread>
@@ -181,7 +183,7 @@ struct AI : public TTT3D {
 		for (int i=0; i<76; ++i)
 			if (!(wins[i] & b.them)) { // wins[i] in empty or b.us
 				uint64_t unoccupied = wins[i] & empty;
-				int n = numbits(unoccupied);
+				int n = Board::numbits(unoccupied);
 				if (n < us_min_n) {
 					us_min_n = n;
 					us_ways = 1;
@@ -189,7 +191,7 @@ struct AI : public TTT3D {
 					++us_ways;
 			} else if (!(wins[i] & b.us)) { // wins[i] in empty or b.them
 				uint64_t unoccupied = wins[i] & empty;
-				int n = numbits(unoccupied);
+				int n = Board::numbits(unoccupied);
 				if (n < them_min_n) {
 					them_min_n = n;
 					them_ways = 1;
