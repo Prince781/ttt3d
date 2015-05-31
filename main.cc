@@ -1,4 +1,4 @@
-// vim: et:ts=4:sw=4
+// vim: et:ts=4:sw=4:cc=120
 #include "ttt3d.h"
 
 #include <cstdio>
@@ -250,8 +250,7 @@ int main() {
         int ntries = 0;
         do {
             if (ntries > 0)
-                printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n",
-                        move[0], move[1], move[2]);
+                printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n", move[0], move[1], move[2]);
             printf("Enter move (x y z): ");
             scanf("%d %d %d", &move[0], &move[1], &move[2]);
             ntries = 1;
