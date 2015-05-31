@@ -91,7 +91,7 @@ static const uint64_t wins[] = {
 	0x1000020000400008
 };
 
-enum Player { NONE, US, THEM };
+enum Player { NONE, US, THEM, INVALID };
 struct Board {
     uint64_t us = 0, them = 0;
 
@@ -119,6 +119,8 @@ struct Board {
     }
 
     Player get(int x, int y, int z) {
+	if (x < 0 || x > 3 || y < 0 || y > 3 || z < 0 || z > 3)
+		return INVALID;
         if (us & mask(x,y,z))
             return US;
         if (them & mask(x,y,z))
@@ -138,6 +140,29 @@ struct Board {
 
     uint64_t getEmpty() {
 	return ~(us | them);
+    }
+
+    void print(FILE *stream = stdout) {
+	const char us_c = 'X', them_c = 'O', empty_c = ' ';
+	
+	for (int y=3; y>=0; --y) {
+		for (int z=0; z<4; ++z) {
+			for (int x=0; x<4; ++x) {
+				char c = 0;
+				switch (get(x,y,z)) {
+				case US: c = us_c; break;
+				case THEM: c = them_c; break;
+				case NONE: default: c = empty_c; break;
+				}
+				fprintf(stream, "[%c]", c);
+			}
+			fprintf(stream, " ");
+		}
+		fprintf(stream, "\n");
+	}
+	for (int z=0; z<4; ++z)
+		fprintf(stream, "   z = %d     ", z);
+	fprintf(stream, "\n");
     }
 };
 
@@ -206,11 +231,11 @@ struct AI : public TTT3D {
 	return (p == US ? w : -w);
     }
 
-    const int MAX_DEPTH = 10;
+    const int MAX_DEPTH = 3;
 
     best get_best_move(Board b, Player t, 
 		       int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
-        if (depth == MAX_DEPTH)
+        if (depth == MAX_DEPTH || b.win() == US || b.win() == THEM)
             return (best){moveX, moveY, moveZ, get_weight(b, t)};
 
         /*
@@ -238,10 +263,10 @@ struct AI : public TTT3D {
         
         if (t == US)
             return *std::max_element(children.begin(), children.end(), 
-		[](best a, best b) { return a.score < b.score; });
+		[](best ba, best bb) { return ba.score < bb.score; });
         else
             return *std::min_element(children.begin(), children.end(), 
-		[](best a, best b) { return a.score < b.score; });
+		[](best ba, best bb) { return ba.score < bb.score; });
     }
 
     void next_move(int mv[3]) {
@@ -249,8 +274,10 @@ struct AI : public TTT3D {
             game_board.set(THEM, mv[0], mv[1], mv[2]);
 
         // compute move
-
-        game_board.set(US, mv[0], mv[1], mv[2]);
+	printf("computing AI move...\n");
+	best move = get_best_move(game_board, US);
+	printf("AI: moving to (%d, %d, %d)\n", move.x, move.y, move.z);
+	game_board.set(US, move.x, move.y, move.z);
     }
 
 #if 0  
@@ -268,5 +295,32 @@ struct AI : public TTT3D {
 int main() {
     auto length = minutes(3);
     BP::AI ai(length);
-    ai.sqzzl((int[]){0,0,0});
+    while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
+	int move[] = { -1, -1, -1 };
+	int ntries = 0;
+	do {
+		if (ntries > 0)
+			printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n",
+				move[0], move[1], move[2]);
+    		printf("Enter move (x y z): ");
+		scanf("%d %d %d", &move[0], &move[1], &move[2]);
+		ntries = 1;
+	} while (ai.game_board.get(move[0], move[1], move[2]) != BP::NONE);
+	printf("Player: moving to (%d, %d, %d)\n", move[0], move[1], move[2]);
+	ai.sqzzl(move);
+	ai.game_board.print();
+    }
+    switch (ai.game_board.win()) {
+	case BP::US:
+		printf("Game over: AI has won\n");
+		break;
+	case BP::THEM:
+		printf("Game over: Player has won\n");
+		break;
+	case BP::NONE:
+	default:
+		printf("Game over: Draw\n");
+		break;
+    }
+    return 0;
 }
