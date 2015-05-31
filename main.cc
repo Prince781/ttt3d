@@ -266,11 +266,11 @@ int main() {
             break;
         case BP::THEM:
             printf("Game over: Player has won\n");
-		break;
-	case BP::NONE:
-	default:
-		printf("Game over: Draw\n");
-		break;
+        break;
+    case BP::NONE:
+    default:
+        printf("Game over: Draw\n");
+        break;
     }
     return 0;
 }
