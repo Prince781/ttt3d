@@ -183,7 +183,6 @@ struct AI: public TTT3D {
 #if 0
     ~AI() { thread.join(); }
 #endif
-
     const int MAX_DEPTH = 3;
 
     move get_best_move(Board b, Player t, int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
