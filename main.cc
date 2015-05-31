@@ -100,7 +100,7 @@ namespace BP {
             if (winner == US)
                 w = INFINITY;   // infinite ways to win in zero steps
             else if (winner == THEM)
-                w = -INFINITY;
+                w = 0;
             else {
                 int us_min_n = 4;   // step length
                 int us_ways = 0;
@@ -127,8 +127,10 @@ namespace BP {
                     }
                 float w_us = (float) us_ways / us_min_n;
                 float w_them = (float) them_ways / them_min_n;
-                w = w_us - w_them;
+                w = w_us / w_them;
             }
+            print();
+            printf("weight(b) = %f\n", w);
             return w;
         }
 
@@ -174,7 +176,7 @@ namespace BP {
         }
 
 
-        const int MAX_DEPTH = 3;
+        const int MAX_DEPTH = 1;
 
         move get_best_move(Board b, Player t, 
                 int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
