@@ -11,6 +11,15 @@
 #include <functional>
 #include <cassert>
 
+#define KRST "\x1B[0m"
+#define KRED "\x1B[41m"
+#define KGRN "\x1B[42m"
+#define KYEL "\x1B[43m"
+#define KBLU "\x1B[44m"
+#define KMAG "\x1B[45m"
+#define KCYN "\x1B[46m"
+#define KWHT "\x1B[47m"
+
 namespace BP {
 
 static const uint64_t wins[] = { 0xf, 0xf0, 0xf00, 0xf000, 0xf0000, 0xf00000,
@@ -86,30 +95,33 @@ struct Board {
     }
 
     void print(FILE *stream = stdout) {
-	const char us_c = 'X', them_c = 'O', empty_c = ' ';
-	
-	for (int y=3; y>=0; --y) {
-		for (int z=0; z<4; ++z) {
-			for (int x=0; x<4; ++x) {
-				char c = 0;
-				switch (get(x,y,z)) {
-				case US: c = us_c; break;
-				case THEM: c = them_c; break;
-				case NONE: default: c = empty_c; break;
-				}
-				fprintf(stream, "[%c]", c);
-			}
-			fprintf(stream, " ");
-		}
-		fprintf(stream, "\n");
-	}
-	for (int z=0; z<4; ++z)
-		fprintf(stream, "   z = %d     ", z);
-	fprintf(stream, "\n");
+        for (int y=3; y>=0; --y) {
+            if (y != 3) {
+                for (int i=0; i<4; ++i)
+                    fprintf(stream, "--------------- ");
+                fprintf(stream, "\n");
+            }
+            for (int z=0; z<4; ++z) {
+                for (int x=0; x<4; ++x) {
+                    if (x != 0) fprintf(stream, "|");
+                    switch (get(x,y,z)) {
+                        case US:   fprintf(stream, KGRN " X " KRST); break;
+                        case THEM: fprintf(stream, KBLU " O " KRST); break;
+//                        default:   fprintf(stream, " " KWHT " " KRST " "); break;
+                        default: fprintf(stream, "   "); break;
+                    }
+                }
+                fprintf(stream, " ");
+            }
+            fprintf(stream, "\n");
+        }
+        for (int z=0; z<4; ++z)
+            fprintf(stream, "   z = %d     ", z);
+        fprintf(stream, "\n");
     }
 };
 
-struct best {
+struct move {
     int x, y, z;
     float score;
 };
@@ -126,8 +138,7 @@ struct AI: public TTT3D {
 #endif
     }
 
-    float get_weight(Board b, Player p) {
-        assert(p == US || p == THEM);
+    float get_weight(Board b) {
         const Player winner = b.win();
         const uint64_t empty = b.getEmpty();
         float w;
@@ -171,22 +182,22 @@ struct AI: public TTT3D {
             float w_them = (float) them_ways / them_min_n;
             w = w_us - w_them;
         }
-        return (p == US ? w : -w);
+        return w;
     }
 
     const int MAX_DEPTH = 3;
 
-    best get_best_move(Board b, Player t, 
+    move get_best_move(Board b, Player t, 
 		       int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
         if (depth == MAX_DEPTH || b.win() == US || b.win() == THEM)
-            return (best){moveX, moveY, moveZ, get_weight(b, t)};
+            return (move){moveX, moveY, moveZ, get_weight(b)};
 
         /*
          * terminal node
          * check winner
          */
 
-        std::vector<best> children;
+        std::vector<move> children;
 
         for (int x = 0; x < 4; ++x) {
             for (int y = 0; y < 4; ++y) {
@@ -207,9 +218,9 @@ struct AI: public TTT3D {
         }
 
         if (t == US)
-            return *std::max_element(children.begin(), children.end(), [](best a, best b) { return a.score < b.score; });
+            return *std::max_element(children.begin(), children.end(), [](move a, move b) { return a.score < b.score; });
         else
-            return *std::min_element(children.begin(), children.end(), [](best a, best b) { return a.score < b.score; });
+            return *std::min_element(children.begin(), children.end(), [](move a, move b) { return a.score < b.score; });
     }
 
     void next_move(int mv[3]) {
@@ -217,10 +228,10 @@ struct AI: public TTT3D {
             game_board.set(THEM, mv[0], mv[1], mv[2]);
 
         // compute move
-	printf("computing AI move...\n");
-	best move = get_best_move(game_board, US);
-	printf("AI: moving to (%d, %d, %d)\n", move.x, move.y, move.z);
-	game_board.set(US, move.x, move.y, move.z);
+        printf("computing AI move...\n");
+        move move = get_best_move(game_board, US);
+        printf("AI: moving to (%d, %d, %d)\n", move.x, move.y, move.z);
+        game_board.set(US, move.x, move.y, move.z);
     }
 
 #if 0
@@ -239,19 +250,19 @@ int main() {
     auto length = minutes(3);
     BP::AI ai(length);
     while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
-	int move[] = { -1, -1, -1 };
-	int ntries = 0;
-	do {
-		if (ntries > 0)
-			printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n",
-				move[0], move[1], move[2]);
-    		printf("Enter move (x y z): ");
-		scanf("%d %d %d", &move[0], &move[1], &move[2]);
-		ntries = 1;
-	} while (ai.game_board.get(move[0], move[1], move[2]) != BP::NONE);
-	printf("Player: moving to (%d, %d, %d)\n", move[0], move[1], move[2]);
-	ai.sqzzl(move);
-	ai.game_board.print();
+        int move[] = { -1, -1, -1 };
+        int ntries = 0;
+        do {
+            if (ntries > 0)
+                printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n",
+                    move[0], move[1], move[2]);
+                printf("Enter move (x y z): ");
+            scanf("%d %d %d", &move[0], &move[1], &move[2]);
+            ntries = 1;
+        } while (ai.game_board.get(move[0], move[1], move[2]) != BP::NONE);
+        printf("Player: moving to (%d, %d, %d)\n", move[0], move[1], move[2]);
+        ai.sqzzl(move);
+        ai.game_board.print();
     }
     switch (ai.game_board.win()) {
 	case BP::US:
