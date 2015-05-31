@@ -1,7 +1,9 @@
 #include "ttt3d.h"
 
 #include <cstdio>
+#include <cassert>
 #include <cinttypes>
+
 #include <vector>
 #include <algorithm>
 #include <thread>
