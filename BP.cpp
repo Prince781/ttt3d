@@ -60,9 +60,6 @@ struct Board {
     }
 
     void set(Player p, int x, int y, int z) {
-        if (p == US || p == THEM)
-            assert(get(x,y,z) == NONE);
-
         if (p == US) {
             us |= mask(x, y, z);
         } else if (p == THEM) {
@@ -74,8 +71,6 @@ struct Board {
     }
 
     Player get(int x, int y, int z) const {
-        assert(0 <= x && x <= 3 && 0 <= y && y <= 3 && 0 <= z && z <= 3);
-
         if (us & mask(x, y, z))
             return US;
         if (them & mask(x, y, z))
@@ -99,7 +94,23 @@ struct Board {
         return NONE;
     }
 
-    float get_weight() const {
+    bool canWinInOneMove(Player p) const {
+        if (p == US) {
+            for (auto w : wins) {
+                // if you have 3 of 4 bits, and they have none, you can win in 1 move
+                if (numbits(us & w) == 3 && (them & w) == 0)
+                    return true;
+            }
+        } else if (p == THEM) {
+            for (auto w : wins) {
+                if (numbits(them & w) == 3 && (us & w) == 0)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    float get_weight(Player cur) const {
         const Player winner = win();
         const uint64_t empty = getEmpty();
 
@@ -111,39 +122,64 @@ struct Board {
          * - smaller number of steps (n) to win > larger number of steps to win
          */
         if (winner == US)
-            return INFINITY;   // infinite ways to win in zero steps
+            return INFINITY;
         else if (winner == THEM)
             return -INFINITY;
         else if (winner == DRAW)
             return 0;
+        else if (canWinInOneMove(cur))
+            return (cur == US) ? INFINITY : -INFINITY;
         else {
             int us_min_n = 4;   // step length
             int us_ways = 0;
             int them_min_n = 4;
             int them_ways = 0;
             // get n for US
-            for (int i = 0; i < 76; ++i) {
-                if (!(wins[i] & them)) {  // wins[i] in empty or us
-                    uint64_t unoccupied = wins[i] & empty;
-                    int n = Board::numbits(unoccupied);
+            for (auto w : wins) {
+                int us_needed = w & ~us;               // if the bits we don't have of the win
+                if ((us_needed & empty) == us_needed){ // are available
+                    int n_us_needed = numbits(us_needed);
+                    if (n_us_needed < us_min_n) {
+                        us_min_n = n_us_needed;
+                        us_ways = 1;
+                    } else if (n_us_needed == us_min_n) {
+                        ++us_ways;
+                    }
+                }
+
+                int them_needed = w & ~them;               // if the bits they don't have of the win
+                if ((them_needed & empty) == them_needed){     // are available
+                    int n_them_needed = numbits(them_needed);
+                    if (n_them_needed < them_min_n) {
+                        them_min_n = n_them_needed;
+                        them_ways = 1;
+                    } else if (n_them_needed == them_min_n) {
+                        ++them_ways;
+                    }
+                }
+               /*
+                if (!(w & them)) {  // wins[i] in empty or us
+                    uint64_t unoccupied = w & empty;
+                    int n = numbits(unoccupied);
                     if (n < us_min_n) {
                         us_min_n = n;
                         us_ways = 1;
                     } else if (n == us_min_n)
                         ++us_ways;
-                } else if (!(wins[i] & us)) {  // wins[i] in empty or b.them
-                    uint64_t unoccupied = wins[i] & empty;
-                    int n = Board::numbits(unoccupied);
+                } else if (!(w & us)) {  // wins[i] in empty or them
+                    uint64_t unoccupied = w & empty;
+                    int n = numbits(unoccupied);
                     if (n < them_min_n) {
                         them_min_n = n;
                         them_ways = 1;
                     } else if (n == them_min_n)
                         ++them_ways;
                 }
+                */
             }
             float w_us = (float) us_ways / us_min_n;
             float w_them = (float) them_ways / them_min_n;
-            return w_us/w_them;
+            return w_us / w_them;
         }
     }
 
@@ -178,54 +214,48 @@ struct AI: public TTT3D {
 #if 0
     ~AI() { thread.join(); }
 #endif
+
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
         if (depth == 1 || board.win() != NONE)
-            return board.get_weight();
+            return board.get_weight(turn);
 
         float best = (turn == US) ? -INFINITY : INFINITY;
 
-        for (int x = 0; x < 4; ++x) {
-            for (int y = 0; y < 4; ++y) {
-                for (int z = 0; z < 4; ++z) {
-                    if (board.get(x, y, z) == NONE) {
-                        if (turn == US) { // max
-                            board.set(US, x, y, z);
-                            best = fmax(best, minimax(board, THEM, depth - 1, alpha, beta));
-                            alpha = fmax(alpha, best);
-                            board.set(NONE, x, y, z);
-                            if (beta <= alpha)
-                                goto done;
-                        } else { // min
-                            board.set(THEM, x, y, z);
-                            best = fmin(best, minimax(board, US, depth - 1, alpha, beta));
-                            beta = fmin(beta, best);
-                            board.set(NONE, x, y, z);
-                            if (beta <= alpha)
-                                goto done;
-                        }
-                    }
-                }
+#define FOREMPTY for (int x = 0; x < 4; ++x) for (int y = 0; y < 4; ++y) for (int z = 0; z < 4; ++z) if (board.get(x, y, z) == NONE)
+        if (turn == US){
+            FOREMPTY {
+                board.set(US, x, y, z);
+                best = fmax(best, minimax(board, THEM, depth - 1, alpha, beta));
+                alpha = fmax(alpha, best);
+                board.set(NONE, x, y, z);
+                if (beta <= alpha)
+                    return best;
+            }
+        } else if (turn == THEM) {
+            FOREMPTY {
+                board.set(THEM, x, y, z);
+                best = fmin(best, minimax(board, US, depth - 1, alpha, beta));
+                beta = fmin(beta, best);
+                board.set(NONE, x, y, z);
+                if (beta <= alpha)
+                    return best;
             }
         }
-    done:
+#undef FOREMPTY
         return best;
     }
 
     move get_best_move() {
         std::vector<move> moves;
  
-        for (int x = 0; x < 4; ++x) {
-            for (int y = 0; y < 4; ++y) {
-                for (int z = 0; z < 4; ++z) {
-                    if (game_board.get(x,y,z) == NONE) {
-                        game_board.set(US,x,y,z);
-                        moves.push_back((move){x, y, z, minimax(game_board, THEM, 4, -INFINITY, INFINITY)}); // max depth here
-                        game_board.set(NONE,x,y,z);
-                    }
-                }
-            }
+#define FOREMPTY for (int x = 0; x < 4; ++x) for (int y = 0; y < 4; ++y) for (int z = 0; z < 4; ++z) if (game_board.get(x, y, z) == NONE)
+        FOREMPTY {
+            game_board.set(US, x, y, z);
+            moves.push_back((move){x, y, z, minimax(game_board, THEM, 4, -INFINITY, INFINITY)}); // max depth here
+            game_board.set(NONE, x, y, z);
         }
- 
+#undef FOREMPTY
+
         return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
     }
 
