@@ -171,7 +171,6 @@ struct move {
     float score;
 };
 
-// TODO: const stuff
 struct AI: public TTT3D {
     explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
@@ -207,6 +206,7 @@ struct AI: public TTT3D {
 
     move get_best_move() {
         std::vector<move> moves;
+ 
         for (int x = 0; x < 4; ++x) {
             for (int y = 0; y < 4; ++y) {
                 for (int z = 0; z < 4; ++z) {
@@ -218,6 +218,7 @@ struct AI: public TTT3D {
                 }
             }
         }
+ 
         return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
     }
 
