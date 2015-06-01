@@ -2,13 +2,11 @@
 
 #undef VERBOSE // no logs
 #define NDEBUG // no assertions
-
 #include <cstdio>
 #include <cassert>
 #include <cinttypes>
 
 #include <functional>
-#include <vector>
 #include <unordered_map>
 #include <algorithm>
 
@@ -75,14 +73,6 @@ struct Board {
 
     static inline uint64_t mask(const int x, const int y, const int z) {
         return 1UL << (x * 16 + y * 4 + z);
-    }
-
-    static inline void coords(int bitpos, int out[3]) {
-        out[0] = bitpos / 16;
-        bitpos %= 16;
-        out[1] = bitpos / 4;
-        bitpos %= 4;
-        out[2] = bitpos;
     }
 
     static inline int bitcount(uint64_t val) {
@@ -194,7 +184,7 @@ struct move {
     float score;
 };
 
-struct AI: public TTT3D {
+struct AI : public TTT3D {
     Board game_board;
     std::unordered_map<Board, float, Board> table;
 
@@ -210,56 +200,55 @@ struct AI: public TTT3D {
 
         float best = (turn == US) ? -INFINITY : INFINITY;
 
-        for (uint64_t empty = board.getEmpty(), pos = 0; empty; empty >>= 1, pos++) {
-            if (empty & 1) {
-                int xyz[3];
-                Board::coords(pos, xyz);
-                int x = xyz[0], y = xyz[1], z = xyz[2];
+        for (int x=0; x<4; ++x)
+        for (int y=0; y<4; ++y)
+        for (int z=0; z<4; ++z)
+        if (board.get(x,y,z) == NONE) {
+            board.set(turn, x, y, z);
 
-                board.set(turn, x, y, z);
-
-                if (turn == US) {
-                    float child = minimax(board, THEM, depth - 1, alpha, beta);
-                    if (child > best) best = child;
-                    if (best > alpha) alpha = best;
-                } else {
-                    float child = minimax(board, US, depth - 1, alpha, beta);
-                    if (child < best) best = child;
-                    if (best < beta) beta = best;
-                }
-
-                #ifdef VERBOSE
-                for (int i=max_depth; i>depth; --i) printf("\t");
-                printf("%s (%d,%d,%d), best = %g\n", turn==US?"us":"them", x,y,z, best);
-                #endif
-
-                board.set(NONE, x, y, z);
-
-                if (beta <= alpha)
-                    break;
+            if (turn == US) {
+                float child = minimax(board, THEM, depth - 1, alpha, beta);
+                if (child > best) best = child;
+                if (best > alpha) alpha = best;
+            } else {
+                float child = minimax(board, US, depth - 1, alpha, beta);
+                if (child < best) best = child;
+                if (best < beta) beta = best;
             }
+
+            #ifdef VERBOSE
+            for (int i=max_depth; i>depth; --i) printf("\t");
+            printf("%s (%d,%d,%d), best = %g\n", turn==US?"us":"them", x,y,z, best);
+            #endif
+
+            board.set(NONE, x, y, z);
+
+            if (beta <= alpha)
+                goto done;
         }
+done:
         table[board] = best;
         return best;
     }
 
     move get_best_move() {
-        std::vector<move> moves;
+        move best = {-1,-1,-1,-INFINITY};
  
         for (int x = 0; x < 4; ++x) { for (int y = 0; y < 4; ++y) { for (int z = 0; z < 4; ++z) {
             if (game_board.get(x,y,z) == NONE) {
                 game_board.set(US, x, y, z);
                 float w = minimax(game_board, THEM, max_depth, -INFINITY, INFINITY);
                 game_board.set(NONE, x, y, z);
-                moves.push_back((move){x, y, z, w});
+                if (w > best.score)
+                    best = (move){x, y, z, w};
 
                 #ifdef VERBOSE
-                printf("us (%d,%d,%d) = %g\n", x,y,z,moves.back().score);
+                printf("us (%d,%d,%d) = %g\n", x,y,z,moves.score);
                 #endif
             }
         }}}
 
-        return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
+        return best;
     }
 
     void next_move(int mv[3]) {
