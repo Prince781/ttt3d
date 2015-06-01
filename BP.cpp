@@ -49,6 +49,7 @@ enum Player {
 
 char us_piece = 'O';
 
+// TODO: try bitset
 struct Board {
     uint64_t us = 0, them = 0;
 
@@ -137,6 +138,8 @@ struct Board {
             return 0;
         else if (canWinInOneMove(cur))
             return (cur == US) ? INFINITY : -INFINITY;
+        else if (canWinInOneMove(cur == US ? THEM : US))
+            return (cur == US) ? -INFINITY : INFINITY;
         else {
             int us_min_n = 4;   // step length
             int us_ways = 0;
