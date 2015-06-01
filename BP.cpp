@@ -57,11 +57,11 @@ struct Board {
         return 1UL << (x * 16 + y * 4 + z);
     }
 
-    static inline unsigned bitcount(uint64_t val) {
+    static inline int bitcount(uint64_t val) {
 #ifdef __POPCNT__
         return _mm_popcnt_u64(val);
 #else
-        unsigned i;
+        int i;
         for (i = 0; val; ++i)
             val &= val - 1;
         return i;
@@ -70,16 +70,19 @@ struct Board {
 
     void set(Player p, int x, int y, int z) {
         if (p == US) {
+            assert(get(x,y,z) == NONE);
             us |= mask(x, y, z);
         } else if (p == THEM) {
+            assert(get(x,y,z) == NONE);
             them |= mask(x, y, z);
-        } else {
+        } else if (p == NONE) {
             us &= ~mask(x, y, z);
             them &= ~mask(x, y, z);
         }
     }
 
     Player get(int x, int y, int z) const {
+        assert(0 <= x && x <= 3 && 0 <= y && y <= 3 && 0 <= z && z <= 3);
         if (us & mask(x, y, z))
             return US;
         if (them & mask(x, y, z))
@@ -136,10 +139,6 @@ struct Board {
             return -INFINITY;
         else if (winner == DRAW)
             return 0;
-        else if (canWinInOneMove(cur))
-            return (cur == US) ? INFINITY : -INFINITY;
-        else if (canWinInOneMove(cur == US ? THEM : US))
-            return (cur == US) ? -INFINITY : INFINITY;
         else {
             int us_min_n = 4;   // step length
             int us_ways = 0;
@@ -147,50 +146,29 @@ struct Board {
             int them_ways = 0;
             // get n for US
             for (auto w : wins) {
-                int us_needed = w & ~us;               // if the bits we don't have of the win
-                if ((us_needed & empty) == us_needed){ // are available
-                    int n_us_needed = bitcount(us_needed);
-                    if (n_us_needed < us_min_n) {
-                        us_min_n = n_us_needed;
+                if ((w & them) == 0) { // if they have none of the bits
+                    int n = bitcount(w & empty);
+                    if (n < us_min_n) {
+                        us_min_n = n;
                         us_ways = 1;
-                    } else if (n_us_needed == us_min_n) {
+                    } else if (n == us_min_n) {
                         ++us_ways;
                     }
                 }
 
-                int them_needed = w & ~them;               // if the bits they don't have of the win
-                if ((them_needed & empty) == them_needed){     // are available
-                    int n_them_needed = bitcount(them_needed);
-                    if (n_them_needed < them_min_n) {
-                        them_min_n = n_them_needed;
-                        them_ways = 1;
-                    } else if (n_them_needed == them_min_n) {
-                        ++them_ways;
-                    }
-                }
-               /*
-                if (!(w & them)) {  // wins[i] in empty or us
-                    uint64_t unoccupied = w & empty;
-                    int n = bitcount(unoccupied);
-                    if (n < us_min_n) {
-                        us_min_n = n;
-                        us_ways = 1;
-                    } else if (n == us_min_n)
-                        ++us_ways;
-                } else if (!(w & us)) {  // wins[i] in empty or them
-                    uint64_t unoccupied = w & empty;
-                    int n = bitcount(unoccupied);
+                if ((w & us) == 0) {
+                    int n = bitcount(w & empty);
                     if (n < them_min_n) {
                         them_min_n = n;
                         them_ways = 1;
-                    } else if (n == them_min_n)
+                    } else if (n == them_min_n) {
                         ++them_ways;
+                    }
                 }
-                */
             }
             float w_us = (float) us_ways / us_min_n;
             float w_them = (float) them_ways / them_min_n;
-            return w_us / w_them;
+            return w_us * -w_them;
         }
     }
 
@@ -233,7 +211,7 @@ struct AI: public TTT3D {
         float best = (turn == US) ? -INFINITY : INFINITY;
 
 #define FOREMPTY for (int x = 0; x < 4; ++x) for (int y = 0; y < 4; ++y) for (int z = 0; z < 4; ++z) if (board.get(x, y, z) == NONE)
-        if (turn == US){
+        if (turn == US) {
             FOREMPTY {
                 board.set(US, x, y, z);
                 best = fmax(best, minimax(board, THEM, depth - 1, alpha, beta));
@@ -259,13 +237,13 @@ struct AI: public TTT3D {
     move get_best_move() {
         std::vector<move> moves;
  
-#define FOREMPTY for (int x = 0; x < 4; ++x) for (int y = 0; y < 4; ++y) for (int z = 0; z < 4; ++z) if (game_board.get(x, y, z) == NONE)
-        FOREMPTY {
-            game_board.set(US, x, y, z);
-            moves.push_back((move){x, y, z, minimax(game_board, THEM, 4, -INFINITY, INFINITY)}); // max depth here
-            game_board.set(NONE, x, y, z);
-        }
-#undef FOREMPTY
+        for (int x = 0; x < 4; ++x) { for (int y = 0; y < 4; ++y) { for (int z = 0; z < 4; ++z) {
+            if (game_board.get(x, y, z) == NONE) {
+                game_board.set(US, x, y, z);
+                moves.push_back((move){x, y, z, minimax(game_board, THEM, 4, -INFINITY, INFINITY)}); // max depth here
+                game_board.set(NONE, x, y, z);
+            }
+        }}}
 
         return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
     }
