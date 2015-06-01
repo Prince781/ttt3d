@@ -1,11 +1,12 @@
 #include "ttt3d.h"
 
 #undef VERBOSE // no logs
-#define NDEBUG // no assertions
+//#define NDEBUG // no assertions
 #include <cstdio>
 #include <cassert>
 #include <cinttypes>
 
+#include <vector>
 #include <functional>
 #include <unordered_map>
 #include <algorithm>
@@ -128,35 +129,71 @@ struct Board {
         const Player winner = win();
         const uint64_t empty = getEmpty();
 
-        float wt;
         if (unlikely(winner == US))
-            wt = INFINITY;
+            return INFINITY;
         else if (unlikely(winner == THEM))
-            wt = -INFINITY;
+            return -INFINITY;
         else if (unlikely(winner == DRAW))
-            wt = 0;
+            return 0;
         else {
+#if 0
             int ways_to_win[] = {0,0,0,0};
             int them_ways_to_win[] = {0,0,0,0};
 
             for (auto w : wins) {
                 int n = bitcount(w & empty);
                 if ((w & them) == 0 && (w & us) != 0) { // if they have none of the bits
-                    if (cur == US && n == 1)
-                        return INFINITY;
                     ways_to_win[n]++;
                 } else if ((w & us) == 0 && (w & them) != 0) {
-                    if (cur == THEM && n == 1)
-                        return -INFINITY;
                     them_ways_to_win[n]++;
                 }
             }
 
+            if (ways_to_win[1] && cur == US)
+                return INFINITY;
+            if (them_ways_to_win[1] && cur == THEM)
+                return -INFINITY;
+
             float w_us   =      ways_to_win[1] * 10 +      ways_to_win[2] * 5 +      ways_to_win[3] * 1;
             float w_them = them_ways_to_win[1] * 10 + them_ways_to_win[2] * 5 + them_ways_to_win[3] * 1;
-            wt = w_us * -w_them;
+            return  w_us * -w_them;
+#else
+            int score[] = { 0, 1, 4, 16, 99999999 };
+            int w_us = 0, w_them = 0;
+            for (auto w : wins) {
+                if ((w & them) == 0) { // they have none of the bits
+                    switch(bitcount(w & us)){
+                        case 1: w_us += score[1]; break;
+                        case 2: w_us += score[2]; break;
+                        case 3: {
+                            if (cur == US)
+                                w_us += score[4];
+                            else
+                                w_us += score[3];
+                            break;
+                        }
+                        case 4: w_us += score[4]; break;
+                        default: break;
+                    }
+                } else if ((w & us) == 0) {
+                    switch(bitcount(w & them)){
+                        case 1: w_them += score[1]; break;
+                        case 2: w_them += score[2]; break;
+                        case 3: {
+                            if (cur == US)
+                                w_them += score[3];
+                            else
+                                w_them += score[4];
+                            break;
+                        }
+                        case 4: w_them += score[4]; break;
+                        default: break;
+                    }
+                }
+            }
+            return w_us * -w_them;
+#endif
         }
-        return wt;
     }
 
     void print(FILE *stream = stdout) const {
@@ -190,7 +227,7 @@ struct AI : public TTT3D {
 
     explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
-    const int max_depth = 4;
+    const int max_depth = 5;
 
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
         if (unlikely(depth == 1 || board.win() != NONE))
@@ -200,55 +237,53 @@ struct AI : public TTT3D {
 
         float best = (turn == US) ? -INFINITY : INFINITY;
 
-        for (int x=0; x<4; ++x)
-        for (int y=0; y<4; ++y)
-        for (int z=0; z<4; ++z)
-        if (board.get(x,y,z) == NONE) {
-            board.set(turn, x, y, z);
+        for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
+            if (board.get(x,y,z) == NONE) {
+                board.set(turn, x, y, z);
 
-            if (turn == US) {
-                float child = minimax(board, THEM, depth - 1, alpha, beta);
-                if (child > best) best = child;
-                if (best > alpha) alpha = best;
-            } else {
-                float child = minimax(board, US, depth - 1, alpha, beta);
-                if (child < best) best = child;
-                if (best < beta) beta = best;
+                if (turn == US) {
+                    float child = minimax(board, THEM, depth - 1, alpha, beta);
+                    if (child > best) best = child;
+                    if (best > alpha) alpha = best;
+                } else {
+                    float child = minimax(board, US, depth - 1, alpha, beta);
+                    if (child < best) best = child;
+                    if (best < beta) beta = best;
+                }
+
+                #ifdef VERBOSE
+                for (int i=max_depth; i>depth; --i) printf("\t");
+                printf("%s (%d,%d,%d), best = %g\n", turn==US?"us":"them", x,y,z, best);
+                #endif
+
+                board.set(NONE, x, y, z);
+
+                if (beta <= alpha)
+                    goto done;
             }
-
-            #ifdef VERBOSE
-            for (int i=max_depth; i>depth; --i) printf("\t");
-            printf("%s (%d,%d,%d), best = %g\n", turn==US?"us":"them", x,y,z, best);
-            #endif
-
-            board.set(NONE, x, y, z);
-
-            if (beta <= alpha)
-                goto done;
-        }
+        }}}
 done:
         table[board] = best;
         return best;
     }
 
     move get_best_move() {
-        move best = {-1,-1,-1,-INFINITY};
+        std::vector<move> moves;
  
-        for (int x = 0; x < 4; ++x) { for (int y = 0; y < 4; ++y) { for (int z = 0; z < 4; ++z) {
+        for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
             if (game_board.get(x,y,z) == NONE) {
                 game_board.set(US, x, y, z);
                 float w = minimax(game_board, THEM, max_depth, -INFINITY, INFINITY);
                 game_board.set(NONE, x, y, z);
-                if (w > best.score)
-                    best = (move){x, y, z, w};
+                moves.push_back((move){x, y, z, w});
 
                 #ifdef VERBOSE
-                printf("us (%d,%d,%d) = %g\n", x,y,z,moves.score);
+                printf("us (%d,%d,%d) = %g\n", x,y,z, moves.score);
                 #endif
             }
         }}}
-
-        return best;
+ 
+        return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
     }
 
     void next_move(int mv[3]) {
@@ -265,6 +300,8 @@ done:
         mv[2] = our_move.z;
 
         printf("AI: moving to (%d, %d) on board %d\n", our_move.x, our_move.y, our_move.z);
+        if (our_move.score == -INFINITY)
+            printf("i'm going to lose ;_;\n");
     }
 };
 
