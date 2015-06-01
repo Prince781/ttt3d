@@ -50,9 +50,6 @@ enum Player {
 
 char us_piece = 'O';
 
-struct Board;
-std::map<Board, float> table;
-
 // TODO: try bitset
 struct Board {
     uint64_t us = 0, them = 0;
@@ -123,15 +120,7 @@ struct Board {
         return NONE;
     }
 
-    float get_weight(Player cur) {
-/*        if (table.find(*this) != table.end())
-            return table.at(*this);
-        table[*this] = calc_weight(cur);
-        return table[*this];*/
-        return calc_weight(cur);
-    }
-
-    float calc_weight(Player cur) const {
+    float get_weight(Player cur) const {
         const Player winner = win();
         const uint64_t empty = getEmpty();
 
@@ -192,18 +181,18 @@ struct move {
 };
 
 struct AI: public TTT3D {
-    explicit AI(const duration<double> tta) : TTT3D(tta) {}
+    Board game_board;
+    std::map<Board, float> table;
 
-#if 0
-    ~AI() { thread.join(); }
-#endif
+    explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
     const int max_depth = 5;
 
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
-        if (depth == 1 || board.win() != NONE) {
+        if (depth == 1 || board.win() != NONE)
             return board.get_weight(turn);
-        }
+        if (table.find(board) != table.end())
+            return table[board];
 
         float best = (turn == US) ? -INFINITY : INFINITY;
 
@@ -223,15 +212,18 @@ struct AI: public TTT3D {
                     beta = fmin(beta, best);
                 }
 
+                #ifdef VERBOSE
                 for (int i=max_depth; i>depth; --i) printf("\t");
                 printf("%s (%d,%d,%d), best = %g\n", turn==US?"us":"them", x,y,z, best);
+                #endif
 
                 board.set(NONE, x, y, z);
 
                 if (beta <= alpha)
-                    return best;
+                    break;
             }
         }
+        table[board] = best;
         return best;
     }
 
@@ -244,7 +236,10 @@ struct AI: public TTT3D {
                 float w = minimax(game_board, THEM, max_depth, -INFINITY, INFINITY);
                 game_board.set(NONE, x, y, z);
                 moves.push_back((move){x, y, z, w});
+
+                #ifdef VERBOSE
                 printf("us (%d,%d,%d) = %g\n", x,y,z,moves.back().score);
+                #endif
             }
         }}}
 
@@ -266,13 +261,6 @@ struct AI: public TTT3D {
 
         printf("AI: moving to (%d, %d) on board %d\n", our_move.x, our_move.y, our_move.z);
     }
-    
-    Board game_board;
-
-#if 0
-    void compute_game_tree() {}
-    std::thread thread = std::thread(&AI::compute_game_tree, this);
-#endif
 };
 
 }
