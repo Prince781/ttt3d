@@ -189,15 +189,17 @@ struct AI: public TTT3D {
             for (int y = 0; y < 4; ++y) {
                 for (int z = 0; z < 4; ++z) {
                     if (b.get(x, y, z) == NONE) {
+			move best = { x, y, z, 0 };
                         if (t == US) {
                             b.set(US, x, y, z);
-                            children.push_back(get_best_move(b, THEM, x, y, z, depth + 1));
+                            best.score = get_best_move(b, THEM, x, y, z, depth + 1).score;
                             b.set(NONE, x, y, z);
                         } else {
                             b.set(THEM, x, y, z);
-                            children.push_back(get_best_move(b, US, x, y, z, depth + 1));
+                            best.score = get_best_move(b, US, x, y, z, depth + 1).score;
                             b.set(NONE, x, y, z);
                         }
+			children.push_back(best);
                     }
                 }
             }
