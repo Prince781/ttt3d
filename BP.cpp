@@ -1,15 +1,10 @@
-// vim: et:ts=4:sw=4:cc=120
 #include "ttt3d.h"
 
 #include <cstdio>
-#include <cassert>
 #include <cinttypes>
-
+#include <cmath>
 #include <vector>
 #include <algorithm>
-#include <thread>
-#include <functional>
-#include <cassert>
 
 #define KRST "\x1B[0m"
 #define KRED "\x1B[41m"
@@ -147,18 +142,12 @@ struct Board {
 
     void print(FILE *stream = stdout) {
         for (int y=3; y>=0; --y) {
-            if (y != 3) {
-                for (int i=0; i<4; ++i)
-                    fprintf(stream, "--------------- ");
-                fprintf(stream, "\n");
-            }
             for (int z=0; z<4; ++z) {
                 for (int x=0; x<4; ++x) {
-                    if (x != 0) fprintf(stream, "|");
                     switch (get(x,y,z)) {
-                        case US:   fprintf(stream, KGRN " X " KRST); break;
-                        case THEM: fprintf(stream, KBLU " O " KRST); break;
-                        default:   fprintf(stream, "   "); break;
+                        case US:   fprintf(stream, KGRN "X" KRST); break;
+                        case THEM: fprintf(stream, KBLU "O" KRST); break;
+                        default:   fprintf(stream, "."); break;
                     }
                 }
                 fprintf(stream, " ");
@@ -166,7 +155,7 @@ struct Board {
             fprintf(stream, "\n");
         }
         for (int z=0; z<4; ++z)
-            fprintf(stream, "   z = %d     ", z);
+            fprintf(stream, "z=%d  ", z);
         fprintf(stream, "\n");
     }
 };
@@ -225,7 +214,6 @@ struct AI: public TTT3D {
             game_board.set(THEM, mv[0], mv[1], mv[2]);
 
         // compute move
-        printf("computing AI move...\n");
         move move = get_best_move(game_board, US);
         printf("AI: moving to (%d, %d, %d)\n", move.x, move.y, move.z);
         game_board.set(US, move.x, move.y, move.z);
@@ -239,36 +227,4 @@ struct AI: public TTT3D {
 #endif
 };
 
-}
-
-int main() {
-    auto length = minutes(3);
-    BP::AI ai(length);
-    while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
-        int move[] = { -1, -1, -1 };
-        int ntries = 0;
-        do {
-            if (ntries > 0)
-                printf("(%d, %d, %d) is invalid or occupied. Pick another move.\n", move[0], move[1], move[2]);
-            printf("Enter move (x y z): ");
-            scanf("%d %d %d", &move[0], &move[1], &move[2]);
-            ntries = 1;
-        } while (ai.game_board.get(move[0], move[1], move[2]) != BP::NONE);
-        printf("Player: moving to (%d, %d, %d)\n", move[0], move[1], move[2]);
-        ai.sqzzl(move);
-        ai.game_board.print();
-    }
-    switch (ai.game_board.win()) {
-        case BP::US:
-            printf("Game over: AI has won\n");
-            break;
-        case BP::THEM:
-            printf("Game over: Player has won\n");
-        break;
-    case BP::NONE:
-    default:
-        printf("Game over: Draw\n");
-        break;
-    }
-    return 0;
 }
