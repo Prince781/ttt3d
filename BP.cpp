@@ -160,7 +160,7 @@ struct Board {
             float w_them = them_ways_to_win[1] * 10 + them_ways_to_win[2] * 5 + them_ways_to_win[3] * 1;
             return  w_us * -w_them;
 #else
-            float score[] = { 0, 1, 4, 16, INFINITY };
+            static const float score[] = { 0, 1, 4, 16, INFINITY };
             float w_us = 0, w_them = 0;
             for (auto w : wins) {
                 if ((w & them) == 0) { // they have none of the bits
