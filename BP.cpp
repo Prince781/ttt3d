@@ -1,7 +1,8 @@
 #include "ttt3d.h"
 
 #undef VERBOSE // no logs
-//#define NDEBUG // no assertions
+#define NDEBUG // no assertions
+
 #include <cstdio>
 #include <cassert>
 #include <cinttypes>
@@ -67,9 +68,10 @@ struct Board {
     }
 
     size_t operator()(Board const& b) const {
-        std::size_t h1 = std::hash<uint64_t>()(b.us);
-        std::size_t h2 = std::hash<uint64_t>()(b.them);
-        return h1 ^ (h2 << 1);
+        size_t seed = 0;
+        seed ^= std::hash<uint64_t>()(b.us) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+        seed ^= std::hash<uint64_t>()(b.them) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+        return seed;
     }
 
     static inline uint64_t mask(const int x, const int y, const int z) {
@@ -127,7 +129,6 @@ struct Board {
 
     float get_weight(Player cur) const {
         const Player winner = win();
-        const uint64_t empty = getEmpty();
 
         if (unlikely(winner == US))
             return INFINITY;
@@ -137,6 +138,7 @@ struct Board {
             return 0;
         else {
 #if 0
+            const uint64_t empty = getEmpty();
             int ways_to_win[] = {0,0,0,0};
             int them_ways_to_win[] = {0,0,0,0};
 
@@ -232,8 +234,10 @@ struct AI : public TTT3D {
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
         if (unlikely(depth == 1 || board.win() != NONE))
             return board.get_weight(turn);
-        if (table.find(board) != table.end())
-            return table[board];
+
+        auto elem = table.find(board);
+        if (elem != table.end())
+            return elem->second;
 
         float best = (turn == US) ? -INFINITY : INFINITY;
 
@@ -299,9 +303,11 @@ done:
         mv[1] = our_move.y;
         mv[2] = our_move.z;
 
+#ifdef VERBOSE
         printf("AI: moving to (%d, %d) on board %d\n", our_move.x, our_move.y, our_move.z);
         if (our_move.score == -INFINITY)
             printf("i'm going to lose ;_;\n");
+#endif
     }
 };
 
