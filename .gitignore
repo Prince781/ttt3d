@@ -31,3 +31,5 @@
 main
 gen_wins
 *.kdev4
+.gdb_history
+peda-*
