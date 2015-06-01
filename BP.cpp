@@ -6,7 +6,6 @@
 #include <cstdio>
 #include <cassert>
 #include <cinttypes>
-#include <cmath>
 
 #include <functional>
 #include <vector>
@@ -49,8 +48,7 @@ static const uint64_t wins[] = { 0xf, 0xf0, 0xf00, 0xf000, 0xf0000, 0xf00000,
     0x2002002002000, 0x4004004004000, 0x8008008008000, 0x1000200040008,
     0x10002000400080, 0x100020004000800, 0x1000200040008000, 0x1248,
     0x12480000, 0x124800000000, 0x1248000000000000, 0x8000040000200001,
-    0x1002004008000, 0x8004002001000, 0x1000020000400008
-};
+    0x1002004008000, 0x8004002001000, 0x1000020000400008 };
 
 enum Player {
     NONE, DRAW, US, THEM
@@ -202,7 +200,7 @@ struct AI: public TTT3D {
 
     explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
-    const int max_depth = 5;
+    const int max_depth = 4;
 
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
         if (unlikely(depth == 1 || board.win() != NONE))
@@ -221,11 +219,13 @@ struct AI: public TTT3D {
                 board.set(turn, x, y, z);
 
                 if (turn == US) {
-                    best = fmax(best, minimax(board, THEM, depth - 1, alpha, beta));
-                    alpha = fmax(alpha, best);
+                    float child = minimax(board, THEM, depth - 1, alpha, beta);
+                    if (child > best) best = child;
+                    if (best > alpha) alpha = best;
                 } else {
-                    best = fmin(best, minimax(board, US, depth - 1, alpha, beta));
-                    beta = fmin(beta, best);
+                    float child = minimax(board, US, depth - 1, alpha, beta);
+                    if (child < best) best = child;
+                    if (best < beta) beta = best;
                 }
 
                 #ifdef VERBOSE
