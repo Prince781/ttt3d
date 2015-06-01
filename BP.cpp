@@ -208,9 +208,9 @@ struct AI: public TTT3D {
         }
 
         if (t == US)
-            return *std::max_element(children.begin(), children.end(), [](move a, move b) { return a.score < b.score; });
+            return *std::max_element(begin(children), end(children), [](move a, move b) { return a.score < b.score; });
         else
-            return *std::min_element(children.begin(), children.end(), [](move a, move b) { return a.score < b.score; });
+            return *std::min_element(begin(children), end(children), [](move a, move b) { return a.score < b.score; });
     }
 
     void next_move(int mv[3]) {
