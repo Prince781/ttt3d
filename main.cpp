@@ -86,7 +86,7 @@ int main() {
     TTT3D *players[] = { new BP::AI(length), new BP::AI(length) };
     Board b;
     int move[] = {-1,-1,-1};
-    Player turn = P1;
+    Player turn = P2;
     
     while (b.win() == NONE) {
         players[(turn == P1 ? 0 : 1)]->sqzzl(move);

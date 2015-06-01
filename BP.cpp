@@ -75,6 +75,7 @@ struct Board {
 
     Player get(int x, int y, int z) const {
         assert(0 <= x && x <= 3 && 0 <= y && y <= 3 && 0 <= z && z <= 3);
+
         if (us & mask(x, y, z))
             return US;
         if (them & mask(x, y, z))
@@ -177,7 +178,7 @@ struct AI: public TTT3D {
 #if 0
     ~AI() { thread.join(); }
 #endif
-    float minimax(Board board, Player turn, int depth) {
+    float minimax(Board board, Player turn, int depth, float alpha, float beta) {
         if (depth == 1 || board.win() != NONE)
             return board.get_weight();
 
@@ -189,18 +190,24 @@ struct AI: public TTT3D {
                     if (board.get(x, y, z) == NONE) {
                         if (turn == US) { // max
                             board.set(US, x, y, z);
-                            best = fmax(best, minimax(board, THEM, depth - 1));
+                            best = fmax(best, minimax(board, THEM, depth - 1, alpha, beta));
+                            alpha = fmax(alpha, best);
                             board.set(NONE, x, y, z);
+                            if (beta <= alpha)
+                                goto done;
                         } else { // min
                             board.set(THEM, x, y, z);
-                            best = fmin(best, minimax(board, US, depth - 1));
+                            best = fmin(best, minimax(board, US, depth - 1, alpha, beta));
+                            beta = fmin(beta, best);
                             board.set(NONE, x, y, z);
+                            if (beta <= alpha)
+                                goto done;
                         }
                     }
                 }
             }
         }
-        
+    done:
         return best;
     }
 
@@ -212,7 +219,7 @@ struct AI: public TTT3D {
                 for (int z = 0; z < 4; ++z) {
                     if (game_board.get(x,y,z) == NONE) {
                         game_board.set(US,x,y,z);
-                        moves.push_back((move){x, y, z, minimax(game_board, THEM, 3)}); // max depth here
+                        moves.push_back((move){x, y, z, minimax(game_board, THEM, 4, -INFINITY, INFINITY)}); // max depth here
                         game_board.set(NONE,x,y,z);
                     }
                 }
