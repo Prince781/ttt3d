@@ -42,6 +42,8 @@ enum Player {
     NONE, US, THEM, INVALID
 };
 
+char us_piece = 'O';
+
 struct Board {
     uint64_t us = 0, them = 0;
 
@@ -145,8 +147,8 @@ struct Board {
             for (int z=0; z<4; ++z) {
                 for (int x=0; x<4; ++x) {
                     switch (get(x,y,z)) {
-                        case US:   fprintf(stream, KGRN "X" KRST); break;
-                        case THEM: fprintf(stream, KBLU "O" KRST); break;
+                        case US:   fprintf(stream, KGRN "%c" KRST, us_piece); break;
+                        case THEM: fprintf(stream, KBLU "%c" KRST, (us_piece == 'X') ? 'O' : 'X'); break;
                         default:   fprintf(stream, "."); break;
                     }
                 }
@@ -214,11 +216,17 @@ struct AI: public TTT3D {
     void next_move(int mv[3]) {
         if (mv[0] != -1)
             game_board.set(THEM, mv[0], mv[1], mv[2]);
+        else
+            us_piece = 'X'; // default is 'O'
 
         // compute move
-        move move = get_best_move(game_board, US);
-        printf("AI: moving to (%d, %d, %d)\n", move.x, move.y, move.z);
-        game_board.set(US, move.x, move.y, move.z);
+        move our_move = get_best_move(game_board, US);
+        game_board.set(US, our_move.x, our_move.y, our_move.z);
+        mv[0] = our_move.x;
+        mv[1] = our_move.y;
+        mv[2] = our_move.z;
+
+        printf("AI: moving to (%d, %d, %d)\n", our_move.x, our_move.y, our_move.z);
     }
     
     Board game_board;
