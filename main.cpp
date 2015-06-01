@@ -19,8 +19,8 @@ int main() {
         } else {
             ai2.sqzzl(move);
         }
-        ai.game_board.print();
-        ai2.game_board.print();
+        printf("%s move = %d,%d,%d\n", p1_turn ? "AI1" : "AI2", move[0], move[1], move[2]);
+        (p1_turn ? ai : ai2).game_board.print();
         printf("--------------------------------\n");
         p1_turn = !p1_turn;
     }

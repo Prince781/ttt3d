@@ -176,9 +176,9 @@ struct AI: public TTT3D {
 #endif
     const int MAX_DEPTH = 3;
 
-    move get_best_move(Board b, Player t, int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
-        if (depth == MAX_DEPTH || b.win() == US || b.win() == THEM)
-            return (move){moveX, moveY, moveZ, b.get_weight()};
+    move get_best_move(Board b, Player t, int depth = 0) {
+        if (depth == MAX_DEPTH || b.win() != NONE)
+            return (move){-1, -1, -1, b.get_weight()};
 
         /*
          * terminal node
@@ -194,18 +194,22 @@ struct AI: public TTT3D {
 			move best = { x, y, z, 0 };
                         if (t == US) {
                             b.set(US, x, y, z);
-                            best.score = get_best_move(b, THEM, x, y, z, depth + 1).score;
+                            best.score = get_best_move(b, THEM, depth + 1).score;
                             b.set(NONE, x, y, z);
                         } else {
                             b.set(THEM, x, y, z);
-                            best.score = get_best_move(b, US, x, y, z, depth + 1).score;
+                            best.score = get_best_move(b, US, depth + 1).score;
                             b.set(NONE, x, y, z);
                         }
-			children.push_back(best);
+                        if (!isnan(best.score))
+                            children.push_back(best);
                     }
                 }
             }
         }
+        
+        if (children.empty())
+            return (move){-1,-1,-1,NAN};
 
         if (t == US)
             return *std::max_element(begin(children), end(children), [](move a, move b) { return a.score < b.score; });
