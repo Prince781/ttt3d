@@ -11,7 +11,7 @@ enum Player {NONE, DRAW, P1, P2};
 int main() {
     auto length = minutes(3);
     
-    TTT3D *players[] = { new BP::AI(length), new BP::AI(length) };
+    TTT3D *players[] = { new AskUser(length), new BP::AI(length) };
     BP::Board b;
     int move[] = {-1,-1,-1};
     Player turn = P1;
