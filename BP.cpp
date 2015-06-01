@@ -1,5 +1,8 @@
 #include "ttt3d.h"
 
+#undef VERBOSE // no logs
+#define NDEBUG // no assertions
+
 #include <cstdio>
 #include <cassert>
 #include <cinttypes>
@@ -11,6 +14,9 @@
 #ifdef __POPCNT__ // need -march=native
 #include <popcntintrin.h>
 #endif
+
+#define likely(x) __builtin_expect((x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
 
 #define KRST "\x1B[0m"
 #define KRED "\x1B[41m"
@@ -109,12 +115,12 @@ struct Board {
     }
 
     Player win() const {
-        if (getEmpty() == 0)
+        if (unlikely(getEmpty() == 0))
             return DRAW;
         for (auto w : wins) {
-            if ((w & us) == w)
+            if (unlikely((w & us) == w))
                 return US;
-            if ((w & them) == w)
+            if (unlikely((w & them) == w))
                 return THEM;
         }
         return NONE;
@@ -125,11 +131,11 @@ struct Board {
         const uint64_t empty = getEmpty();
 
         float wt;
-        if (winner == US)
+        if (unlikely(winner == US))
             wt = INFINITY;
-        else if (winner == THEM)
+        else if (unlikely(winner == THEM))
             wt = -INFINITY;
-        else if (winner == DRAW)
+        else if (unlikely(winner == DRAW))
             wt = 0;
         else {
             int ways_to_win[] = {0,0,0,0};
@@ -189,7 +195,7 @@ struct AI: public TTT3D {
     const int max_depth = 5;
 
     float minimax(Board board, Player turn, int depth, float alpha, float beta) {
-        if (depth == 1 || board.win() != NONE)
+        if (unlikely(depth == 1 || board.win() != NONE))
             return board.get_weight(turn);
         if (table.find(board) != table.end())
             return table[board];
@@ -247,7 +253,7 @@ struct AI: public TTT3D {
     }
 
     void next_move(int mv[3]) {
-        if (mv[0] == -1 && mv[1] == -1 && mv[2] == -1)
+        if (unlikely(mv[0] == -1 && mv[1] == -1 && mv[2] == -1))
             us_piece = 'X'; // we are first
         else
             game_board.set(THEM, mv[0], mv[1], mv[2]);
