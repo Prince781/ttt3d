@@ -1,5 +1,5 @@
 CXX = clang++
-CXXFLAGS = -std=c++11 -g -Wall -O3
+CXXFLAGS = -std=c++11 -g -Wall -O3 -march=native
 LDFLAGS = -pthread
 
 .PHONY: main # compile regardless of file changes

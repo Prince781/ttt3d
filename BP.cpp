@@ -7,6 +7,10 @@
 #include <vector>
 #include <algorithm>
 
+#ifdef __POPCNT__ // need -march=native
+#include <popcntintrin.h>
+#endif
+
 #define KRST "\x1B[0m"
 #define KRED "\x1B[41m"
 #define KGRN "\x1B[42m"
@@ -52,11 +56,15 @@ struct Board {
         return 1UL << (x * 16 + y * 4 + z);
     }
 
-    static inline unsigned numbits(uint64_t val) {
+    static inline unsigned bitcount(uint64_t val) {
+#ifdef __POPCNT__
+        return _mm_popcnt_u64(val);
+#else
         unsigned i;
         for (i = 0; val; ++i)
             val &= val - 1;
         return i;
+#endif
     }
 
     void set(Player p, int x, int y, int z) {
@@ -98,12 +106,12 @@ struct Board {
         if (p == US) {
             for (auto w : wins) {
                 // if you have 3 of 4 bits, and they have none, you can win in 1 move
-                if (numbits(us & w) == 3 && (them & w) == 0)
+                if (bitcount(us & w) == 3 && (them & w) == 0)
                     return true;
             }
         } else if (p == THEM) {
             for (auto w : wins) {
-                if (numbits(them & w) == 3 && (us & w) == 0)
+                if (bitcount(them & w) == 3 && (us & w) == 0)
                     return true;
             }
         }
@@ -138,7 +146,7 @@ struct Board {
             for (auto w : wins) {
                 int us_needed = w & ~us;               // if the bits we don't have of the win
                 if ((us_needed & empty) == us_needed){ // are available
-                    int n_us_needed = numbits(us_needed);
+                    int n_us_needed = bitcount(us_needed);
                     if (n_us_needed < us_min_n) {
                         us_min_n = n_us_needed;
                         us_ways = 1;
@@ -149,7 +157,7 @@ struct Board {
 
                 int them_needed = w & ~them;               // if the bits they don't have of the win
                 if ((them_needed & empty) == them_needed){     // are available
-                    int n_them_needed = numbits(them_needed);
+                    int n_them_needed = bitcount(them_needed);
                     if (n_them_needed < them_min_n) {
                         them_min_n = n_them_needed;
                         them_ways = 1;
@@ -160,7 +168,7 @@ struct Board {
                /*
                 if (!(w & them)) {  // wins[i] in empty or us
                     uint64_t unoccupied = w & empty;
-                    int n = numbits(unoccupied);
+                    int n = bitcount(unoccupied);
                     if (n < us_min_n) {
                         us_min_n = n;
                         us_ways = 1;
@@ -168,7 +176,7 @@ struct Board {
                         ++us_ways;
                 } else if (!(w & us)) {  // wins[i] in empty or them
                     uint64_t unoccupied = w & empty;
-                    int n = numbits(unoccupied);
+                    int n = bitcount(unoccupied);
                     if (n < them_min_n) {
                         them_min_n = n;
                         them_ways = 1;
