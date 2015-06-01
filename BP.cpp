@@ -137,7 +137,7 @@ struct Board {
             }
             float w_us = (float) us_ways / us_min_n;
             float w_them = (float) them_ways / them_min_n;
-            w = w_us - w_them;
+            w = w_us/w_them;
         }
         return w;
     }
@@ -174,7 +174,7 @@ struct AI: public TTT3D {
 #if 0
     ~AI() { thread.join(); }
 #endif
-    const int MAX_DEPTH = 3;
+    const int MAX_DEPTH = 4;
 
     move get_best_move(Board b, Player t, int moveX = -1, int moveY = -1, int moveZ = -1, int depth = 0) {
         if (depth == MAX_DEPTH || b.win() == US || b.win() == THEM)

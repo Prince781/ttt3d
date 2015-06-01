@@ -8,6 +8,7 @@
 int main() {
     auto length = minutes(3);
     BP::AI ai(length);
+   /*
     BP::AI ai2(length);
     
     int move[] = {-1,-1,-1};
@@ -24,8 +25,9 @@ int main() {
         printf("--------------------------------\n");
         p1_turn = !p1_turn;
     }
+   */
     
-   /* while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
+   while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
         int move[] = { -1, -1, -1 };
         do {
             printf("Enter move (x y z): ");
@@ -39,6 +41,6 @@ int main() {
         case BP::US:   printf("Game over: AI has won\n"); break;
         case BP::THEM: printf("Game over: Player has won\n"); break;
         default:       printf("Game over: Draw\n"); break;
-    }*/
+    }
     return 0;
 }
