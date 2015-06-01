@@ -7,8 +7,10 @@
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
+
+#include <functional>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <algorithm>
 
 #ifdef __POPCNT__ // need -march=native
@@ -62,8 +64,16 @@ struct Board {
 
     Board() {}
     Board(const Board& o) : us(o.us), them(o.them) {}
-    bool operator==(const Board& o) const { return us==o.us && them==o.them; }
-    bool operator<(const Board& o) const { return us < o.us || (us == o.us && them < o.them); }
+
+    bool operator==(const Board& o) const {
+        return us==o.us && them==o.them;
+    }
+
+    size_t operator()(Board const& b) const {
+        std::size_t h1 = std::hash<uint64_t>()(b.us);
+        std::size_t h2 = std::hash<uint64_t>()(b.them);
+        return h1 ^ (h2 << 1);
+    }
 
     static inline uint64_t mask(const int x, const int y, const int z) {
         return 1UL << (x * 16 + y * 4 + z);
@@ -188,7 +198,7 @@ struct move {
 
 struct AI: public TTT3D {
     Board game_board;
-    std::map<Board, float> table;
+    std::unordered_map<Board, float, Board> table;
 
     explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
