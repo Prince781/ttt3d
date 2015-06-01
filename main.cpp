@@ -8,7 +8,7 @@
 int main() {
     auto length = minutes(3);
     BP::AI ai(length);
-   /*
+#if 1 // just change this number
     BP::AI ai2(length);
     
     int move[] = {-1,-1,-1};
@@ -16,18 +16,21 @@ int main() {
     
     while (ai.game_board.win() == BP::NONE && ai2.game_board.win() == BP::NONE){
         if (p1_turn) {
+            printf("AI1: ");
             ai.sqzzl(move);
         } else {
+            printf("AI2: ");
             ai2.sqzzl(move);
         }
-        printf("%s move = %d,%d,%d\n", p1_turn ? "AI1" : "AI2", move[0], move[1], move[2]);
         (p1_turn ? ai : ai2).game_board.print();
         printf("--------------------------------\n");
         p1_turn = !p1_turn;
     }
-   */
-    
-   while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
+    const std::string player_strs[] = {"none", "draw", "us", "them"};
+    printf("AI1 says winner is %s\n", player_strs[ai.game_board.win()].c_str());
+    printf("AI2 says winner is %s\n", player_strs[ai2.game_board.win()].c_str());
+#else
+    while (ai.game_board.win() == BP::NONE && ai.game_board.getEmpty()) {
         int move[] = { -1, -1, -1 };
         do {
             printf("Enter move (x y z): ");
@@ -42,5 +45,6 @@ int main() {
         case BP::THEM: printf("Game over: Player has won\n"); break;
         default:       printf("Game over: Draw\n"); break;
     }
+#endif
     return 0;
 }

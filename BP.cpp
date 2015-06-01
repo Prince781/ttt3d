@@ -1,6 +1,7 @@
 #include "ttt3d.h"
 
 #include <cstdio>
+#include <cassert>
 #include <cinttypes>
 #include <cmath>
 #include <vector>
@@ -39,7 +40,7 @@ static const uint64_t wins[] = { 0xf, 0xf0, 0xf00, 0xf000, 0xf0000, 0xf00000,
 };
 
 enum Player {
-    NONE, US, THEM, INVALID
+    NONE, DRAW, US, THEM
 };
 
 char us_piece = 'O';
@@ -47,32 +48,33 @@ char us_piece = 'O';
 struct Board {
     uint64_t us = 0, them = 0;
 
-    static uint64_t mask(int x, int y, int z) {
+    static inline uint64_t mask(const int x, const int y, const int z) {
         return 1UL << (x * 16 + y * 4 + z);
     }
 
-    static int numbits(uint64_t val) {
-        int i;
+    static inline unsigned numbits(uint64_t val) {
+        unsigned i;
         for (i = 0; val; ++i)
             val &= val - 1;
         return i;
     }
 
     void set(Player p, int x, int y, int z) {
-        // TODO: make sure bit is empty before set
-        if (p == US)
+        if (p == US || p == THEM)
+            assert(get(x,y,z) == NONE);
+
+        if (p == US) {
             us |= mask(x, y, z);
-        else if (p == THEM)
+        } else if (p == THEM) {
             them |= mask(x, y, z);
-        else {
+        } else {
             us &= ~mask(x, y, z);
             them &= ~mask(x, y, z);
         }
     }
 
-    Player get(int x, int y, int z) {
-        if (x < 0 || x > 3 || y < 0 || y > 3 || z < 0 || z > 3)
-            return INVALID;
+    Player get(int x, int y, int z) const {
+        assert(0 <= x && x <= 3 && 0 <= y && y <= 3 && 0 <= z && z <= 3);
         if (us & mask(x, y, z))
             return US;
         if (them & mask(x, y, z))
@@ -80,21 +82,23 @@ struct Board {
         return NONE;
     }
 
-    Player win() {
-        for (int i = 0; i < 76; ++i)
-            if ((wins[i] & us) == wins[i])
-                return US;
-        for (int i = 0; i < 76; ++i)
-            if ((wins[i] & them) == wins[i])
-                return THEM;
-        return NONE;
-    }
-
-    uint64_t getEmpty() {
+    inline uint64_t getEmpty() const {
         return ~(us | them);
     }
 
-    float get_weight() {
+    Player win() const {
+        if (getEmpty() == 0)
+            return DRAW;
+        for (auto w : wins) {
+            if ((w & us) == w)
+                return US;
+            if ((w & them) == w)
+                return THEM;
+        }
+        return NONE;
+    }
+
+    float get_weight() const {
         const Player winner = win();
         const uint64_t empty = getEmpty();
 
@@ -105,11 +109,12 @@ struct Board {
          * - more ways to win > less ways to win (because other player has to defend more)
          * - smaller number of steps (n) to win > larger number of steps to win
          */
-        float w;
         if (winner == US)
-            w = INFINITY;   // infinite ways to win in zero steps
+            return INFINITY;   // infinite ways to win in zero steps
         else if (winner == THEM)
-            w = -INFINITY;
+            return -INFINITY;
+        else if (winner == DRAW)
+            return 0;
         else {
             int us_min_n = 4;   // step length
             int us_ways = 0;
@@ -137,12 +142,11 @@ struct Board {
             }
             float w_us = (float) us_ways / us_min_n;
             float w_them = (float) them_ways / them_min_n;
-            w = w_us/w_them;
+            return w_us/w_them;
         }
-        return w;
     }
 
-    void print(FILE *stream = stdout) {
+    void print(FILE *stream = stdout) const {
         for (int y=3; y>=0; --y) {
             for (int z=0; z<4; ++z) {
                 for (int x=0; x<4; ++x) {
@@ -152,12 +156,12 @@ struct Board {
                         default:   fprintf(stream, "."); break;
                     }
                 }
-                fprintf(stream, " ");
+                fprintf(stream, "    ");
             }
             fprintf(stream, "\n");
         }
         for (int z=0; z<4; ++z)
-            fprintf(stream, "z=%d  ", z);
+            fprintf(stream, "z=%d     ", z);
         fprintf(stream, "\n");
     }
 };
@@ -174,63 +178,63 @@ struct AI: public TTT3D {
 #if 0
     ~AI() { thread.join(); }
 #endif
-    const int MAX_DEPTH = 4;
+    float minimax(Board board, Player turn, int depth) {
+        if (depth == 1 || board.win() != NONE)
+            return board.get_weight();
 
-    move get_best_move(Board b, Player t, int depth = 0) {
-        if (depth == MAX_DEPTH || b.win() != NONE)
-            return (move){-1, -1, -1, b.get_weight()};
-
-        /*
-         * terminal node
-         * check winner
-         */
-
-        std::vector<move> children;
+        float best = (turn == US) ? -INFINITY : INFINITY;
 
         for (int x = 0; x < 4; ++x) {
             for (int y = 0; y < 4; ++y) {
                 for (int z = 0; z < 4; ++z) {
-                    if (b.get(x, y, z) == NONE) {
-			move best = { x, y, z, 0 };
-                        if (t == US) {
-                            b.set(US, x, y, z);
-                            best.score = get_best_move(b, THEM, depth + 1).score;
-                            b.set(NONE, x, y, z);
-                        } else {
-                            b.set(THEM, x, y, z);
-                            best.score = get_best_move(b, US, depth + 1).score;
-                            b.set(NONE, x, y, z);
+                    if (board.get(x, y, z) == NONE) {
+                        if (turn == US) { // max
+                            board.set(US, x, y, z);
+                            best = fmax(best, minimax(board, THEM, depth - 1));
+                            board.set(NONE, x, y, z);
+                        } else { // min
+                            board.set(THEM, x, y, z);
+                            best = fmin(best, minimax(board, US, depth - 1));
+                            board.set(NONE, x, y, z);
                         }
-                        if (!isnan(best.score))
-                            children.push_back(best);
                     }
                 }
             }
         }
         
-        if (children.empty())
-            return (move){-1,-1,-1,NAN};
+        return best;
+    }
 
-        if (t == US)
-            return *std::max_element(begin(children), end(children), [](move a, move b) { return a.score < b.score; });
-        else
-            return *std::min_element(begin(children), end(children), [](move a, move b) { return a.score < b.score; });
+    move get_best_move() {
+        std::vector<move> moves;
+        for (int x = 0; x < 4; ++x) {
+            for (int y = 0; y < 4; ++y) {
+                for (int z = 0; z < 4; ++z) {
+                    if (game_board.get(x,y,z) == NONE) {
+                        game_board.set(US,x,y,z);
+                        moves.push_back((move){x, y, z, minimax(game_board, THEM, 3)}); // max depth here
+                        game_board.set(NONE,x,y,z);
+                    }
+                }
+            }
+        }
+        return *std::max_element(begin(moves), end(moves), [](move a, move b){ return a.score < b.score; });
     }
 
     void next_move(int mv[3]) {
-        if (mv[0] != -1)
-            game_board.set(THEM, mv[0], mv[1], mv[2]);
+        if (mv[0] == -1 && mv[1] == -1 && mv[2] == -1)
+            us_piece = 'X'; // we are first
         else
-            us_piece = 'X'; // default is 'O'
+            game_board.set(THEM, mv[0], mv[1], mv[2]);
 
         // compute move
-        move our_move = get_best_move(game_board, US);
+        move our_move = get_best_move();
         game_board.set(US, our_move.x, our_move.y, our_move.z);
         mv[0] = our_move.x;
         mv[1] = our_move.y;
         mv[2] = our_move.z;
 
-        printf("AI: moving to (%d, %d, %d)\n", our_move.x, our_move.y, our_move.z);
+        printf("AI: moving to (%d, %d) on board %d\n", our_move.x, our_move.y, our_move.z);
     }
     
     Board game_board;
