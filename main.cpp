@@ -83,10 +83,10 @@ struct Board {
 int main() {
     auto length = minutes(3);
     
-    TTT3D *players[] = { new BP::AI(length), new BP::AI(length) };
+    TTT3D *players[] = { new AskUser(length), new BP::AI(length) };
     Board b;
     int move[] = {-1,-1,-1};
-    Player turn = P2;
+    Player turn = P1;
     
     while (b.win() == NONE) {
         players[(turn == P1 ? 0 : 1)]->sqzzl(move);
@@ -100,7 +100,7 @@ int main() {
     if (b.win() == DRAW)
         printf("draw\n");
     else {
-        printf(b.win() ? "P1" : "P2");
+        printf(b.win() == P1 ? "P1" : "P2");
         printf(" won\n");
     }
     

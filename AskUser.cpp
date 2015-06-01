@@ -18,6 +18,8 @@ struct AskUser : public TTT3D {
         }
         do {
             printf("Enter move (x y z): ");
+            if (feof(stdin))
+                exit(1);
             std::cin >> mv[0] >> mv[1] >> mv[2];
         } while (!(0 <= mv[0] && mv[0] <= 3 && 0 <= mv[1] && mv[1] <= 3 && 0 <= mv[2] && mv[2] <= 3 && get(mv) == NONE));
         set(US, mv);
