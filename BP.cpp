@@ -158,8 +158,8 @@ struct Board {
             float w_them = them_ways_to_win[1] * 10 + them_ways_to_win[2] * 5 + them_ways_to_win[3] * 1;
             return  w_us * -w_them;
 #else
-            int score[] = { 0, 1, 4, 16, 99999999 };
-            int w_us = 0, w_them = 0;
+            float score[] = { 0, 1, 4, 16, INFINITY };
+            float w_us = 0, w_them = 0;
             for (auto w : wins) {
                 if ((w & them) == 0) { // they have none of the bits
                     switch(bitcount(w & us)){
@@ -167,12 +167,12 @@ struct Board {
                         case 2: w_us += score[2]; break;
                         case 3: {
                             if (cur == US)
-                                w_us += score[4];
+                                w_us = score[4];
                             else
                                 w_us += score[3];
                             break;
                         }
-                        case 4: w_us += score[4]; break;
+                        case 4: w_us = score[4]; break;
                         default: break;
                     }
                 } else if ((w & us) == 0) {
@@ -183,10 +183,10 @@ struct Board {
                             if (cur == US)
                                 w_them += score[3];
                             else
-                                w_them += score[4];
+                                w_them = score[4];
                             break;
                         }
-                        case 4: w_them += score[4]; break;
+                        case 4: w_them = score[4]; break;
                         default: break;
                     }
                 }
