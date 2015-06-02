@@ -1,7 +1,8 @@
+// vim: et:ts=4:sw=4:cc=120
 #include "ttt3d.h"
 
-#undef VERBOSE // no logs
-//#define NDEBUG // no assertions
+// #define VERBOSE // printf inside the tree search
+// #define NDEBUG // disable assertions and basic logging
 
 #include <cstdio>
 #include <cassert>
@@ -13,9 +14,11 @@
 #include <unordered_map>
 #include <algorithm>
 
-#define likely(x)   __builtin_expect((x), 1)
-#define unlikely(x) __builtin_expect((x), 0)
+// may help the compiler or CPU with branch prediction
+#define likely(x)   (__builtin_expect((x), 1))
+#define unlikely(x) (__builtin_expect((x), 0))
 
+// colors
 #define KRST "\x1B[0m"
 #define KRED "\x1B[41m"
 #define KGRN "\x1B[42m"
@@ -27,6 +30,7 @@
 
 namespace BP {
 
+// bitmask for every possible win
 static const uint64_t wins[] = { 0xf, 0xf0, 0xf00, 0xf000, 0xf0000, 0xf00000,
     0xf000000, 0xf0000000, 0xf00000000, 0xf000000000, 0xf0000000000,
     0xf00000000000, 0xf000000000000, 0xf0000000000000, 0xf00000000000000,
@@ -51,63 +55,53 @@ enum Player {
     NONE, DRAW, US, THEM
 };
 
-static inline int bitcount(uint64_t val) {
-    return __builtin_popcount(val);
-}
-
-static inline int bitpos(uint64_t val) {
-    return __builtin_ctzll(val);
-}
-
-static inline uint64_t mask(const int x, const int y, const int z) {
-    return 1UL << (x * 16 + y * 4 + z);
+// count 1 bits
+static inline int bitcount(uint64_t val) { return __builtin_popcount(val); }
+// count tailing 0s
+static inline int bitpos(uint64_t val) { return __builtin_ctzll(val); }
+// x,y,z to bitmask
+static inline uint64_t bitmask(const int x, const int y, const int z) {
+    return 1ULL << (x * 16 + y * 4 + z);
 }
 
 struct Board {
     uint64_t us = 0, them = 0;
 
-    Board() {}
-    Board(const Board& o) : us(o.us), them(o.them) {}
-
-    bool operator==(const Board& o) const {
-        return us==o.us && them==o.them;
+    bool operator== (const Board& o) const {
+        return us == o.us && them == o.them;
     }
 
-    size_t operator()(Board const& b) const {
-        size_t seed = 0;
-        seed ^= std::hash<uint64_t>()(b.us) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-        seed ^= std::hash<uint64_t>()(b.them) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-        return seed;
-    }
+    Player operator() (int x, int y, int z) const {
+        assert(0 <= x && x <= 3);
+        assert(0 <= y && y <= 3);
+        assert(0 <= z && z <= 3);
 
-   void set(Player p, int x, int y, int z) {
-        if (p == US) {
-            assert(get(x,y,z) == NONE);
-            us |= mask(x, y, z);
-        } else if (p == THEM) {
-            assert(get(x,y,z) == NONE);
-            them |= mask(x, y, z);
-        } else if (p == NONE) {
-            us &= ~mask(x, y, z);
-            them &= ~mask(x, y, z);
-        }
-    }
-
-    Player get(int x, int y, int z) const {
-        assert(0 <= x && x <= 3 && 0 <= y && y <= 3 && 0 <= z && z <= 3);
-        if (us & mask(x, y, z))
+        if (us & bitmask(x, y, z))
             return US;
-        if (them & mask(x, y, z))
+        if (them & bitmask(x, y, z))
             return THEM;
         return NONE;
     }
 
-    inline uint64_t getEmpty() const {
+    void set(Player p, int x, int y, int z) {
+        if (p == US) {
+            assert((*this)(x,y,z) == NONE);
+            us |= bitmask(x, y, z);
+        } else if (p == THEM) {
+            assert((*this)(x,y,z) == NONE);
+            them |= bitmask(x, y, z);
+        } else if (p == NONE) {
+            us &= ~bitmask(x, y, z);
+            them &= ~bitmask(x, y, z);
+        }
+    }
+
+    inline uint64_t empty() const {
         return ~(us | them);
     }
 
     Player win() const {
-        if (unlikely(getEmpty() == 0))
+        if (unlikely(empty() == 0))
             return DRAW;
         for (auto w : wins) {
             if (unlikely((w & us) == w))
@@ -129,7 +123,7 @@ struct Board {
             return 0;
         else {
 #if 0
-            const uint64_t empty = getEmpty();
+            const uint64_t empty = empty();
             int ways_to_win[] = {0,0,0,0};
             int them_ways_to_win[] = {0,0,0,0};
 
@@ -187,11 +181,11 @@ struct Board {
             return w_us * -w_them;
 #else
             std::map<uint64_t, float> us_moves, them_moves;
-            const uint64_t empty = getEmpty();
+            const uint64_t empty = empty();
             for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
-                if (get(x,y,z) == NONE) {
+                if (this(x,y,z) == NONE) {
                     for (auto win : wins) {
-                        if ((win & mask(x,y,z)) != 0 && (win & them) == 0) {
+                        if ((win & bitmask(x,y,z)) != 0 && (win & them) == 0) {
                             
                         }
                     }
@@ -206,7 +200,7 @@ struct Board {
         for (int y=3; y>=0; --y) {
             for (int z=0; z<4; ++z) {
                 for (int x=0; x<4; ++x) {
-                    switch (get(x,y,z)) {
+                    switch ((*this)(x,y,z)) {
                         case US:   fprintf(stream, KGRN "%c" KRST, us_piece); break;
                         case THEM: fprintf(stream, KBLU "%c" KRST, (us_piece == 'X') ? 'O' : 'X'); break;
                         default:   fprintf(stream, "."); break; }
@@ -226,10 +220,18 @@ struct move {
     float score;
 };
 
+struct BoardHasher {
+    size_t operator() (Board const& b) const {
+        size_t seed = std::hash<uint64_t>()(b.us) + 0x9e3779b9;
+        seed ^= std::hash<uint64_t>()(b.them) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+        return seed;
+    }
+};
+
 struct AI : public TTT3D {
     char us_piece = 'O';
     Board game_board;
-    std::unordered_map<Board, float, Board> table;
+    std::unordered_map<Board, float, BoardHasher> table;
 
     explicit AI(const duration<double> tta) : TTT3D(tta) {}
 
@@ -246,7 +248,7 @@ struct AI : public TTT3D {
         float best = (turn == US) ? -INFINITY : INFINITY;
 
         for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
-            if (board.get(x,y,z) == NONE) {
+            if (board(x,y,z) == NONE) {
                 board.set(turn, x, y, z);
 
                 if (turn == US) {
@@ -278,34 +280,40 @@ done:
     move get_best_move() {
         std::vector<move> moves;
  
+        #ifndef NDEBUG
+        printf("%c - checking obvious wins\n", us_piece);
+        #endif
         for (auto win : wins) {
             if (bitcount(win & game_board.us) == 3) {
-                uint64_t remaining = win & game_board.getEmpty();
+                uint64_t remaining = win & game_board.empty();
                 if (remaining != 0) {
                     int bit = bitpos(remaining);
                     #ifndef NDEBUG
-                    printf("%c - Obvious win detected (%d,%d,%d), bit = %u, bit==64? %d\n", us_piece, bit/16, bit%16/4, bit%16%4, bit, bit==64);
+                    printf("%c - Obvious win detected (%d,%d,%d)\n", us_piece, bit/16, bit%16/4, bit%16%4);
                     #endif
                     return (move){bit/16, bit%16/4, bit%16%4, INFINITY};
                 }
             }
         }
 
+        #ifndef NDEBUG
+        printf("%c - checking obvious blocks\n", us_piece);
+        #endif
         for (auto win : wins) {
             if (bitcount(win & game_board.them) == 3) {
-                uint64_t remaining = win & game_board.getEmpty();
+                uint64_t remaining = win & game_board.empty();
                 if (remaining != 0) {
                     int bit = bitpos(remaining);
                     #ifndef NDEBUG
-                    printf("%c - Obvious block detected (%d,%d,%d), bit = %u\n", us_piece, bit/16,bit%16/4,bit%16%4, bit);
+                    printf("%c - Obvious block detected (%d,%d,%d)\n", us_piece, bit/16, bit%16/4, bit%16%4);
                     #endif
-                    return (move){bit/16, bit%16/4, bit%16%4, INFINITY};
+                    return (move){bit/16, bit%16/4, bit%16%4, 0};
                 }
             }
         }
 
         for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
-            if (game_board.get(x,y,z) == NONE) {
+            if (game_board(x,y,z) == NONE) {
                 game_board.set(US, x, y, z);
                 float w = minimax(game_board, THEM, max_depth, -INFINITY, INFINITY);
                 game_board.set(NONE, x, y, z);
@@ -323,12 +331,8 @@ done:
     void next_move(int mv[3]) {
         if (unlikely(mv[0] == -1 && mv[1] == -1 && mv[2] == -1))
             us_piece = 'X'; // we are first
-        else {
-            #ifndef NDEBUG
-            printf("%c - Setting (%d,%d,%d)\n", us_piece, mv[0], mv[1], mv[2]);
-            #endif
+        else
             game_board.set(THEM, mv[0], mv[1], mv[2]);
-        }
 
         // compute move
         move our_move = get_best_move();

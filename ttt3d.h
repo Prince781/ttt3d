@@ -50,5 +50,6 @@ private:
     bool doing_move = false;
     Timepoint t;
     Duration tt;
+    __attribute__((unused))
     const duration<double> TTA; // total time allowed for one player in seconds
 };
