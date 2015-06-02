@@ -20,7 +20,7 @@ int main() {
         players[(turn == P1 ? 0 : 1)]->sqzzl(move);
         b.set((BP::Player)turn, move[0], move[1], move[2]);
         printf(turn==P1 ? "P1:\n" : "P2:\n");
-        b.print();
+        b.print(turn==P1?'X':'O');
         turn = (turn==P1 ? P2 : P1);
         printf("------------------------------------------------\n");
     }

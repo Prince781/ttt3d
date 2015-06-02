@@ -1,7 +1,7 @@
 #include "ttt3d.h"
 
 #undef VERBOSE // no logs
-#define NDEBUG // no assertions
+//#define NDEBUG // no assertions
 
 #include <cstdio>
 #include <cassert>
@@ -9,14 +9,11 @@
 
 #include <vector>
 #include <functional>
+#include <map>
 #include <unordered_map>
 #include <algorithm>
 
-#ifdef __POPCNT__ // need -march=native
-#include <popcntintrin.h>
-#endif
-
-#define likely(x) __builtin_expect((x), 1)
+#define likely(x)   __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
 #define KRST "\x1B[0m"
@@ -54,9 +51,18 @@ enum Player {
     NONE, DRAW, US, THEM
 };
 
-char us_piece = 'O';
+static inline int bitcount(uint64_t val) {
+    return __builtin_popcount(val);
+}
 
-// TODO: try bitset
+static inline int bitpos(uint64_t val) {
+    return __builtin_ctzll(val);
+}
+
+static inline uint64_t mask(const int x, const int y, const int z) {
+    return 1UL << (x * 16 + y * 4 + z);
+}
+
 struct Board {
     uint64_t us = 0, them = 0;
 
@@ -74,22 +80,7 @@ struct Board {
         return seed;
     }
 
-    static inline uint64_t mask(const int x, const int y, const int z) {
-        return 1UL << (x * 16 + y * 4 + z);
-    }
-
-    static inline int bitcount(uint64_t val) {
-#ifdef __POPCNT__
-        return _mm_popcnt_u64(val);
-#else
-        int i;
-        for (i = 0; val; ++i)
-            val &= val - 1;
-        return i;
-#endif
-    }
-
-    void set(Player p, int x, int y, int z) {
+   void set(Player p, int x, int y, int z) {
         if (p == US) {
             assert(get(x,y,z) == NONE);
             us |= mask(x, y, z);
@@ -159,7 +150,7 @@ struct Board {
             float w_us   =      ways_to_win[1] * 10 +      ways_to_win[2] * 5 +      ways_to_win[3] * 1;
             float w_them = them_ways_to_win[1] * 10 + them_ways_to_win[2] * 5 + them_ways_to_win[3] * 1;
             return  w_us * -w_them;
-#else
+#elif 1
             static const float score[] = { 0, 1, 4, 16, INFINITY };
             float w_us = 0, w_them = 0;
             for (auto w : wins) {
@@ -194,19 +185,31 @@ struct Board {
                 }
             }
             return w_us * -w_them;
+#else
+            std::map<uint64_t, float> us_moves, them_moves;
+            const uint64_t empty = getEmpty();
+            for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
+                if (get(x,y,z) == NONE) {
+                    for (auto win : wins) {
+                        if ((win & mask(x,y,z)) != 0 && (win & them) == 0) {
+                            
+                        }
+                    }
+                }
+            }}}
+            return 17;
 #endif
         }
     }
 
-    void print(FILE *stream = stdout) const {
+    void print(char us_piece, FILE *stream = stdout) const {
         for (int y=3; y>=0; --y) {
             for (int z=0; z<4; ++z) {
                 for (int x=0; x<4; ++x) {
                     switch (get(x,y,z)) {
                         case US:   fprintf(stream, KGRN "%c" KRST, us_piece); break;
                         case THEM: fprintf(stream, KBLU "%c" KRST, (us_piece == 'X') ? 'O' : 'X'); break;
-                        default:   fprintf(stream, "."); break;
-                    }
+                        default:   fprintf(stream, "."); break; }
                 }
                 fprintf(stream, "    ");
             }
@@ -224,6 +227,7 @@ struct move {
 };
 
 struct AI : public TTT3D {
+    char us_piece = 'O';
     Board game_board;
     std::unordered_map<Board, float, Board> table;
 
@@ -274,6 +278,32 @@ done:
     move get_best_move() {
         std::vector<move> moves;
  
+        for (auto win : wins) {
+            if (bitcount(win & game_board.us) == 3) {
+                uint64_t remaining = win & game_board.getEmpty();
+                if (remaining != 0) {
+                    int bit = bitpos(remaining);
+                    #ifndef NDEBUG
+                    printf("%c - Obvious win detected (%d,%d,%d), bit = %u, bit==64? %d\n", us_piece, bit/16, bit%16/4, bit%16%4, bit, bit==64);
+                    #endif
+                    return (move){bit/16, bit%16/4, bit%16%4, INFINITY};
+                }
+            }
+        }
+
+        for (auto win : wins) {
+            if (bitcount(win & game_board.them) == 3) {
+                uint64_t remaining = win & game_board.getEmpty();
+                if (remaining != 0) {
+                    int bit = bitpos(remaining);
+                    #ifndef NDEBUG
+                    printf("%c - Obvious block detected (%d,%d,%d), bit = %u\n", us_piece, bit/16,bit%16/4,bit%16%4, bit);
+                    #endif
+                    return (move){bit/16, bit%16/4, bit%16%4, INFINITY};
+                }
+            }
+        }
+
         for (int x=0;x<4;++x){ for (int y=0;y<4;++y){ for (int z=0;z<4;++z){
             if (game_board.get(x,y,z) == NONE) {
                 game_board.set(US, x, y, z);
@@ -281,7 +311,7 @@ done:
                 game_board.set(NONE, x, y, z);
                 moves.push_back((move){x, y, z, w});
 
-                #ifdef VERBOSE
+                #if !defined(NDEBUG) && defined(VERBOSE)
                 printf("us (%d,%d,%d) = %g\n", x,y,z, moves.score);
                 #endif
             }
@@ -293,8 +323,12 @@ done:
     void next_move(int mv[3]) {
         if (unlikely(mv[0] == -1 && mv[1] == -1 && mv[2] == -1))
             us_piece = 'X'; // we are first
-        else
+        else {
+            #ifndef NDEBUG
+            printf("%c - Setting (%d,%d,%d)\n", us_piece, mv[0], mv[1], mv[2]);
+            #endif
             game_board.set(THEM, mv[0], mv[1], mv[2]);
+        }
 
         // compute move
         move our_move = get_best_move();
@@ -303,11 +337,11 @@ done:
         mv[1] = our_move.y;
         mv[2] = our_move.z;
 
-#ifdef VERBOSE
-        printf("AI: moving to (%d, %d) on board %d\n", our_move.x, our_move.y, our_move.z);
+        #ifndef NDEBUG
+        printf("%c - AI: moving to (%d, %d) on board %d\n", us_piece, our_move.x, our_move.y, our_move.z);
         if (our_move.score == -INFINITY)
             printf("i'm going to lose ;_;\n");
-#endif
+        #endif
     }
 };
 
